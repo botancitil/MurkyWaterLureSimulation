@@ -1,0 +1,106 @@
+<!-- Gemini 10/07/26 -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Muddy Water Lure Simulator</title>
+    <style>
+        body { background-color: #1e1e1e; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
+        canvas { border: 1px solid #444; margin-top: 20px; background-color: #000; }
+        .controls { display: flex; flex-direction: column; align-items: center; gap: 15px; margin-top: 20px; }
+        .slider-container { width: 400px; display: flex; justify-content: space-between; align-items: center; }
+        input[type=range] { width: 250px; }
+        .description { max-width: 800px; margin: 30px auto; text-align: left; line-height: 1.6; color: #cccccc; background-color: #2a2a2a; padding: 20px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h2>Lure Visibility Simulator</h2>
+    <div class="controls">
+        <div class="slider-container">
+            <label>Light Level:</label>
+            <input type="range" id="light" min="0" max="100" value="70">
+        </div>
+        <div class="slider-container">
+            <label>Mud (Turbidity):</label>
+            <input type="range" id="mud" min="0" max="100" value="60">
+        </div>
+    </div>
+    
+    <canvas id="simCanvas" width="960" height="200"></canvas>
+
+    <div class="description">
+        <p>This interactive visualization models the optical transmission, backscatter, and contrast of common fishing lure colors in stained and muddy water environments. The sliders adjust the ambient light, simulating bright sun versus overcast conditions, and turbidity, representing suspended clay and dirt particles.</p>
+        <p>As turbidity increases, light transmission decays and veiling scatter increases. Dark colors like Black & Blue maintain strong silhouettes by blocking ambient light. Bright fluorescent tones like Fire Tiger and Chartreuse reflect the maximum amount of available light to retain contrast. Solid White and Bone provide stark contrast against the gloom, while natural or reflective colors like Green Pumpkin and Chrome fade rapidly into the background hue.</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const lightSlider = document.getElementById('light');
+        const mudSlider = document.getElementById('mud');
+
+        const lures = [
+            { name: "Black & Blue", draw: (c, x, y) => { c.fillStyle='#08080a'; fillBody(c,x,y); c.fillStyle='#1447d9'; c.fillRect(x-15, y-5, 30, 10); drawEye(c,x,y,'#e61919'); }},
+            { name: "Fire Tiger", draw: (c, x, y) => { c.fillStyle='#d9fa0d'; fillBody(c,x,y); c.fillStyle='#ff6100'; c.beginPath(); c.arc(x,y,20,0,Math.PI); c.fill(); c.fillStyle='#2e590f'; c.beginPath(); c.arc(x,y,20,Math.PI,Math.PI*2); c.fill(); drawStripe(c,x-5,y); drawStripe(c,x+5,y); drawEye(c,x,y,'#f2e600'); }},
+            { name: "Chartreuse", draw: (c, x, y) => { c.fillStyle='#ccff00'; fillBody(c,x,y); c.fillStyle='#99cc00'; c.fillRect(x-10, y-10, 20, 5); drawEye(c,x,y,'#000000'); }},
+            { name: "Solid White", draw: (c, x, y) => { c.fillStyle='#f5f5fa'; fillBody(c,x,y); c.fillStyle='#d92626'; c.fillRect(x-12, y-3, 4, 10); drawEye(c,x,y,'#e61919'); }},
+            { name: "Bone", draw: (c, x, y) => { c.fillStyle='#e3dac9'; fillBody(c,x,y); drawEye(c,x,y,'#000000'); }},
+            { name: "Craw Red", draw: (c, x, y) => { c.fillStyle='#f2590d'; fillBody(c,x,y); c.fillStyle='#8c1a10'; c.beginPath(); c.arc(x,y,20,Math.PI,Math.PI*2); c.fill(); drawStripe(c,x,y); drawEye(c,x,y,'#1a1a1a'); }},
+            { name: "Green Pumpkin", draw: (c, x, y) => { c.fillStyle='#475c26'; fillBody(c,x,y); drawEye(c,x,y,'#1a1a1a'); }},
+            { name: "Chrome", draw: (c, x, y) => { c.fillStyle='#d9dede'; fillBody(c,x,y); c.fillStyle='#1a408c'; c.beginPath(); c.arc(x,y,20,Math.PI,Math.PI*2); c.fill(); drawEye(c,x,y,'#f2d91a'); }}
+        ];
+
+        function fillBody(c, x, y) { c.beginPath(); c.ellipse(x, y, 35, 15, 0, 0, Math.PI*2); c.fill(); }
+        function drawEye(c, x, y, color) { c.fillStyle=color; c.beginPath(); c.arc(x-20, y-4, 3, 0, Math.PI*2); c.fill(); c.fillStyle='#000'; c.beginPath(); c.arc(x-20, y-4, 1.5, 0, Math.PI*2); c.fill(); }
+        function drawStripe(c, x, y) { c.fillStyle='#080808'; c.fillRect(x, y-10, 3, 20); }
+
+        function render() {
+            let light = lightSlider.value / 100;
+            let mud = mudSlider.value / 100;
+            
+            let rMud = 122, gMud = 87, bMud = 46;
+            let rClr = 25,  gClr = 56, bClr = 82;
+            let bgR = (1-mud)*rClr + mud*rMud;
+            let bgG = (1-mud)*gClr + mud*gMud;
+            let bgB = (1-mud)*bClr + mud*bMud;
+            
+            let ambR = bgR * (0.1 + 0.9*light);
+            let ambG = bgG * (0.1 + 0.9*light);
+            let ambB = bgB * (0.1 + 0.9*light);
+
+            ctx.fillStyle = `rgb(${ambR}, ${ambG}, ${ambB})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            let kAtt = 2.6 * mud + 0.3;
+            let transmission = Math.exp(-kAtt);
+            
+            ctx.save();
+            ctx.globalAlpha = light * transmission; 
+            if (ctx.globalAlpha < 0.05) ctx.globalAlpha = 0.05;
+            
+            let cx = 60;
+            lures.forEach(l => {
+                l.draw(ctx, cx, 80);
+                cx += 120;
+            });
+            ctx.restore();
+            
+            let veilAlpha = 1.0 - transmission;
+            ctx.fillStyle = `rgba(${ambR}, ${ambG}, ${ambB}, ${veilAlpha})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            cx = 60;
+            lures.forEach(l => {
+                ctx.fillStyle = 'white';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(l.name, cx, 150);
+                cx += 120;
+            });
+        }
+
+        lightSlider.oninput = render;
+        mudSlider.oninput = render;
+        render();
+    </script>
+</body>
+</html>
